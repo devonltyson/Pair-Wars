@@ -186,7 +186,9 @@ void takeTurn(int player, int* hand) {
 
         //discard one card
         int i = rand() % 2; // 0 or 1
-        printf("PLAYER %d: discards %d \n", player, hand[i]);
+        //printf("PLAYER %d: discards %d \n", player, hand[i]);
+        printf("PLAYER %d: discards ", player);
+        displayCards(0, hand[i], 1);
         *bottom = hand[i];
         if(i == 0){
           hand[0] = hand[1];
