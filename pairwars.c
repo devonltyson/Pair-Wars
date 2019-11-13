@@ -13,6 +13,7 @@ FILE *logFile;
 int deck[NUM_OF_CARDS];
 int *top, *bottom;
 int seed;
+int discarded;
 int p1_hand [HAND_SIZE];
 int p2_hand [HAND_SIZE];
 int p3_hand [HAND_SIZE];
@@ -37,6 +38,7 @@ void *dealer(void *d);
 void createThreads();
 void displayDeck();
 void deal();
+void displayCards(int *cards, int singleCard, int size);
 
 
 // run the game
@@ -80,6 +82,11 @@ void createThreads(){
 
 void *dealer(void *d){
 
+    shuffle();
+    deal();
+    printf("\nDEALER: shuffle \n");
+
+    // players take turns going first
     if(round_num == 1) {
         turn = 1;
     } else if(round_num == 2) {
@@ -87,9 +94,7 @@ void *dealer(void *d){
     } else {
         turn = 3;
     }
-    shuffle();
-    deal();
-    printf("\nDEALER: shuffle \n");
+
     pthread_cond_broadcast(&condition);
 
     pthread_mutex_lock(&dealer_lock); // lock
@@ -143,16 +148,24 @@ void *player(void *p) {
 void takeTurn(int player, int* hand) {
 
     // print hand before draw
-    printf("PLAYER %d: hand %d \n", player, hand[0]);
+    printf("HAND ");
+    displayCards(hand, 0, 1);
+    printf("PLAYER %d: hand ", player);
+    displayCards(hand, 0, 1);
 
     // take a card
     hand[1] = *top;
     top++;
-    printf("PLAYER %d: draws %d \n", player, hand[1]);
+    printf("PLAYER %d: draws ", player);
+    displayCards(0, hand[1], 1);
 
     // print hand after draw
-    printf("HAND %d %d\n", hand[0], hand[1]);
-    printf("PLAYER %d: hand %d %d\n", player, hand[0], hand[1]);
+//    printf("HAND %d %d\n", hand[0], hand[1]);
+//    printf("PLAYER %d: hand %d %d\n", player, hand[0], hand[1]);
+    printf("HAND ");
+    displayCards(hand, 0, 2);
+    printf("PLAYER %d: hand ", player);
+    displayCards(hand, 0, 2);
 
     // check if match
     if (hand[0] == hand[1]) { //match
@@ -178,8 +191,10 @@ void takeTurn(int player, int* hand) {
         if(i == 0){
           hand[0] = hand[1];
         }
-
-        displayDeck();
+        //discarded = hand[i];
+        //displayDeck();
+        printf("DECK ");
+        displayCards(deck, 0, 52);
   }
     turn++;
     if (turn > NUM_OF_PLAYERS){
@@ -253,4 +268,30 @@ void displayDeck(){
   }
 
   printf("\n");
+}
+
+void displayCards(int *cards, int singleCard, int size) {
+
+    int card;
+    for(int i=0; i < size; i++) {
+        if(singleCard > 0) { // if the card does not exist in an array
+            card = singleCard;
+        } else {
+            card = cards[i];
+        }
+        if(card == discarded) {
+            break;
+        } else if(card == 11) {
+            printf("J ");
+        } else if(card == 12) {
+            printf("Q ");
+        } else if(card == 13) {
+            printf("K ");
+        } else if(card == 1) {
+            printf("A ");
+        } else {
+            printf("%d ", card);
+        }
+    }
+    printf("\n");
 }
