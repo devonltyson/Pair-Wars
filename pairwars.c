@@ -13,7 +13,6 @@ FILE *logFile;
 int deck[NUM_OF_CARDS];
 int *top, *bottom;
 int seed;
-int discarded;
 int p1_hand [HAND_SIZE];
 int p2_hand [HAND_SIZE];
 int p3_hand [HAND_SIZE];
@@ -36,7 +35,6 @@ void takeTurn();
 void *player(void *p);
 void *dealer(void *d);
 void createThreads();
-void displayDeck();
 void deal();
 void displayCards(int *cards, int singleCard, int size);
 
@@ -50,21 +48,24 @@ int main(int argc, char *argv[]){
     seed = atoi(argv[1]);
     srand(seed);
 
+    // create the deck
     setUpGame();
-    shuffle();
-    displayDeck();
+
+    // show the deck
+    printf("DECK ");
+    displayCards(deck, 0, 52);
 
     // play designated number of rounds
     while(round_num <= NUM_OF_ROUNDS) {
-        createThreads();
-        round_num++;
-        gameOver = false;
+        createThreads(); // run the game using posix threads
+        round_num++; // once game is over, increase the round number
+        gameOver = false; // reset for the next round
     }
 
     exit(EXIT_SUCCESS);
 }
 
-
+// create threads for dealer and players
 void createThreads(){
 
     // create
@@ -80,6 +81,7 @@ void createThreads(){
     pthread_join(playerThread3, NULL);
 }
 
+// one thread for the dealer
 void *dealer(void *d){
 
     shuffle();
@@ -99,19 +101,22 @@ void *dealer(void *d){
 
     pthread_mutex_lock(&dealer_lock); // lock
     while(!gameOver){ // while game is not over
-        pthread_cond_wait(&win_condition, &dealer_lock);
+        pthread_cond_wait(&win_condition, &dealer_lock); // wait for a win
     }
-    pthread_mutex_unlock(&dealer_lock); //unlock
+    pthread_mutex_unlock(&dealer_lock); //unlock when winner determined
 
+    // exit when round is over
     printf("DEALER: exits round \n");
     pthread_exit(NULL);
 }
 
+// player thread for each player
 void *player(void *p) {
 
     // get player number
     int player = *(int *)&p;
 
+    // use current players hand
     int hand [HAND_SIZE];
       if(player == 1) {
           hand[0] = p1_hand[0];
@@ -122,29 +127,28 @@ void *player(void *p) {
           hand[1] = p2_hand[1];
       }
       else{
-        hand[0] = p3_hand[0];
-        hand[1] = p3_hand[1];
+          hand[0] = p3_hand[0];
+          hand[1] = p3_hand[1];
       }
 
-
+    // play until the round is over
     while(gameOver == 0){ // while game not over
         pthread_mutex_lock(&player_lock); // lock
-        while(gameOver == 0 && !(player == turn || turn == 0)){
-           // wait
-            pthread_cond_wait(&condition, &player_lock);
+        while(gameOver == 0 && !(player == turn || turn == 0)){ // while game not over and its not their turn
+            pthread_cond_wait(&condition, &player_lock); // wait their turn
         }
-        if(gameOver == 0){ // go
+        if(gameOver == 0){ // player takes their turn
             takeTurn(player, &hand);
         }
-        pthread_mutex_unlock(&player_lock); // unlock
+        pthread_mutex_unlock(&player_lock); // unlock after turn complete
     }
 
+    // exit when round is over
     printf("PLAYER %d: exits round \n", player);
     pthread_exit(NULL);
 }
 
-
-
+// each player takes their own turn
 void takeTurn(int player, int* hand) {
 
     // print hand before draw
@@ -153,15 +157,13 @@ void takeTurn(int player, int* hand) {
     printf("PLAYER %d: hand ", player);
     displayCards(hand, 0, 1);
 
-    // take a card
+    // take a card from the top of the deck
     hand[1] = *top;
     top++;
     printf("PLAYER %d: draws ", player);
     displayCards(0, hand[1], 1);
 
     // print hand after draw
-//    printf("HAND %d %d\n", hand[0], hand[1]);
-//    printf("PLAYER %d: hand %d %d\n", player, hand[0], hand[1]);
     printf("HAND ");
     displayCards(hand, 0, 2);
     printf("PLAYER %d: hand ", player);
@@ -179,70 +181,72 @@ void takeTurn(int player, int* hand) {
         top--;
         int *ptr = top;
 
+        // shift the deck
         while (ptr != bottom) {
             *ptr = *(ptr+1);
             ptr++;
         }
 
         //discard one card
-        int i = rand() % 2; // 0 or 1
-        //printf("PLAYER %d: discards %d \n", player, hand[i]);
+        int i = rand() % 2; // get a 0 or 1
         printf("PLAYER %d: discards ", player);
-        displayCards(0, hand[i], 1);
+        displayCards(0, hand[i], 1); // use random 0 or 1 as index
         *bottom = hand[i];
-        if(i == 0){
+        if(i == 0){ // move card to first position in the array
           hand[0] = hand[1];
         }
-        //discarded = hand[i];
-        //displayDeck();
         printf("DECK ");
         displayCards(deck, 0, 52);
   }
+    // signal next players turn
     turn++;
     if (turn > NUM_OF_PLAYERS){
-      turn = 1;
+      turn = 1; // go back to player 1 if player 3 just went
     }
     pthread_cond_broadcast(&condition);
 }
 
-
+// make the deck of cards
 void setUpGame(){
 
-  int cardNum = 1;
-  int deckNum = 0;
-  int suitNum = 4;
+  int cardNum = 1; // starting card number
+  int deckNum = 0; // starting position in the deck
+  int suitNum = 4; // number of suits per card number
   int tempCards = NUM_OF_CARDS;
 
   // create all the cards
     while( (deckNum < NUM_OF_CARDS) &&
            (cardNum <= (tempCards/suitNum)) ){
-       for( int i = 0; i < suitNum; i++ ){
+       for( int i = 0; i < suitNum; i++ ){ // make 4 of each number
           deck[deckNum] = cardNum;
-
           deckNum++;
        }
        cardNum++;
     }
     top = deck;
-    bottom = deck + (tempCards - 1) ;
+    bottom = deck + (tempCards - 1);
+    shuffle();
 }
 
+// shuffle the entire deck of cards
 void shuffle(){
 
   int tempCards = NUM_OF_CARDS;
 
   // shuffle the deck
   for (int x = 0; x < (tempCards - 1); x++){
-    int temp = deck[x];
-    int randNum = rand() % (tempCards - x) + x;
+    int temp = deck[x]; // save card at current index
+    int randNum = rand() % (tempCards - x) + x; // get a random position
+    // switch random card index with current card index
     deck[x] = deck[randNum];
     deck[randNum] = temp;
   }
 }
 
+// deal the top card to the players
 void deal(){
 
-  // deal the deck
+    // deal the deck by taking from the first element in the array
     p1_hand[0] = *top;
     top++;
     p2_hand[0] = *top;
@@ -250,49 +254,28 @@ void deal(){
     p3_hand[0] = *top;
     top++;
 }
-void displayDeck(){
 
-  //fputs("DECK ", logFile);
-  printf("DECK ");
-  int *deckPtr = top;
-  char str[10] = {0};
-
-  //get integer into char to print to file
-  while(deckPtr != bottom){
-      //fputs("%d", *deckPtr, logFile);
-      printf("%d ", *deckPtr);
-      deckPtr++;
-
-      if(deckPtr == bottom){
-          //fputs("%d \n", *deckPtr, logFile);
-          printf("%d \n", *deckPtr);
-      }
-  }
-
-  printf("\n");
-}
-
+// use an array of cards or a single card
+// specify the number of cards with the size variable
 void displayCards(int *cards, int singleCard, int size) {
 
     int card;
     for(int i=0; i < size; i++) {
         if(singleCard > 0) { // if the card does not exist in an array
-            card = singleCard;
+            card = singleCard; // size should be 1
         } else {
-            card = cards[i];
+            card = cards[i]; // size can be 1 or more
         }
-        if(card == discarded) {
-            break;
-        } else if(card == 11) {
-            printf("J ");
+        if(card == 11) {
+            printf("J "); // jack
         } else if(card == 12) {
-            printf("Q ");
+            printf("Q "); // queen
         } else if(card == 13) {
-            printf("K ");
+            printf("K "); // king
         } else if(card == 1) {
-            printf("A ");
+            printf("A "); // ace
         } else {
-            printf("%d ", card);
+            printf("%d ", card); // any other card
         }
     }
     printf("\n");
